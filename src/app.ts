@@ -2,6 +2,7 @@ import express,  { NextFunction, Request, Response } from 'express';
 import 'dotenv/config'
 import createHttpError from 'http-errors';
 import bodyParser from 'body-parser';
+import { sequelize } from "./configs/sequelize/models.sequelize";
 
 const app = express();
 
@@ -35,4 +36,13 @@ app.use((err: any, _req:Request, res:Response, _next: NextFunction) => {
   })
 })
 
-app.listen(process.env.PORT, () => console.log("server running at " + process.env.PORT))
+/* connect to cockroach DB & run express server */
+sequelize.sync()
+  .then(() => {
+    console.log('💡 Tables created & Connected to database...💡');
+    app.listen(process.env.PORT, () => console.log("server running at " + process.env.PORT))
+  })
+  .catch((err: any) => {
+    console.error('Error syncing database: ', err);
+    process.exit(1);
+  });
