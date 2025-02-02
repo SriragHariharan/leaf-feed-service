@@ -1,4 +1,5 @@
 import { Sequelize, DataTypes, ModelStatic, Model, Optional } from 'sequelize';
+import 'dotenv/config'
 
 // Initialize Sequelize
 const sequelize = new Sequelize(process.env.DATABASE_URL!, {
@@ -25,13 +26,11 @@ const User: ModelStatic<Model<UserAttributes, UserCreationAttributes>> = sequeli
   'User',
   {
     userID: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.STRING,
       primaryKey: true,
     },
     username: {
       type: DataTypes.STRING,
-      unique: true,
       allowNull: false,
     },
     profilePic: {
@@ -59,20 +58,19 @@ const Post: ModelStatic<Model<PostAttributes, PostCreationAttributes>> = sequeli
   'Post',
   {
     postID: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.STRING,
       primaryKey: true,
     },
     imageURL: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     content: {
       type: DataTypes.STRING,
       allowNull: false,
     },
     ownerID: {
-      type: DataTypes.UUID,
+      type: DataTypes.STRING,
       allowNull: false,
     },
     createdAt: {
@@ -105,11 +103,11 @@ const Timeline: ModelStatic<Model<TimelineAttributes, TimelineCreationAttributes
       primaryKey: true,
     },
     userID: {
-      type: DataTypes.UUID,
+      type: DataTypes.STRING,
       allowNull: false,
     },
     postID: {
-      type: DataTypes.UUID,
+      type: DataTypes.STRING,
       allowNull: false,
     },
     isLiked: {
@@ -126,7 +124,7 @@ const Timeline: ModelStatic<Model<TimelineAttributes, TimelineCreationAttributes
   }
 );
 
-// Define Relationships
+/* Define Relationships*/
 
 // User has many Posts
 User.hasMany(Post, { foreignKey: 'ownerID', onDelete: 'CASCADE' });

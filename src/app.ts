@@ -2,7 +2,10 @@ import express,  { NextFunction, Request, Response } from 'express';
 import 'dotenv/config'
 import createHttpError from 'http-errors';
 import bodyParser from 'body-parser';
-import { sequelize } from "./configs/sequelize/models.sequelize";
+
+/* Rabbit MQ */
+import "./messaging/rabbitmq/user-events.consumer";
+import { sequelize } from './configs/sequelize/models.sequelize';
 
 const app = express();
 
