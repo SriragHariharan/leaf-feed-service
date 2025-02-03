@@ -6,6 +6,7 @@ import * as amqp from 'amqplib';
 import logger from "../../helpers/logger";
 import { getRabbitMQConnection, closeRabbitMQConnection } from './rabbitmq.config';
 import { Post } from '../../configs/sequelize/models.sequelize';
+import sendFanoutEvents from './fanout-events.producer';
 
 const EXCHANGE = "post_events_exchange";
 const QUEUE = "post_events_queue";
@@ -135,6 +136,9 @@ async function processPostData(postData: any): Promise<boolean> {
             ownerID: postData.ownerID,
             // createdAt: postData.createdAt || new Date(),
         });
+
+        /* call the producer and send messages to fanout service */
+        sendFanoutEvents(postData.ownerID, postData.postID);
 
         logger.info(`[RabbitMQ] Successfully processed post event for postID: ${postData.postID}`);
         return true;
