@@ -4,7 +4,7 @@ import createHttpError from 'http-errors';
 import bodyParser from 'body-parser';
 
 /* Rabbit MQ */
-import "./messaging/rabbitmq/user-events.consumer";
+import "./messaging/rabbitmq/consumer";
 import { sequelize } from './configs/sequelize/models.sequelize';
 
 const app = express();
