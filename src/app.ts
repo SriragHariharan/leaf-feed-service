@@ -6,6 +6,7 @@ import bodyParser from 'body-parser';
 /* Rabbit MQ */
 import "./messaging/rabbitmq/consumer";
 import { sequelize } from './configs/sequelize/models.sequelize';
+import feedsRouter from './routes/feed.routes';
 
 const app = express();
 
@@ -18,9 +19,7 @@ app.use((_req: Request, _res: Response, next: NextFunction) => {
 app.use(bodyParser.urlencoded({ extended: false }))
 app.use(bodyParser.json())
 
-app.get("/", (_req: Request, res: Response) => {
-  res.send("Hello from feed-service");
-});
+app.use("/", feedsRouter);
 
 
 //handle endpoints not found: 404
