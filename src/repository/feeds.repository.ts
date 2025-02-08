@@ -6,7 +6,7 @@ class FeedsRepository implements IFeedRepository {
 
     async getFeed(userID: string, page: number): Promise<FeedItem[]> {
         try {
-            const pageSize = 1;
+            const pageSize = 5;
             const offset = (page - 1) * pageSize;
 
             const feed = await Timeline.findAll({
