@@ -10,7 +10,7 @@ async function fetchFriendID(ownerID: string): Promise<any> {
             },
         });
         console.log(response?.data?.data?.friendIDs, " ::: response from friend id fetch");
-        return response?.data?.data?.friendIDs
+        return [...response?.data?.data?.friendIDs, ownerID]
     } catch (error) {
         console.error('Error fetching friend ID:', error);
         throw error; // Rethrow the error for further handling

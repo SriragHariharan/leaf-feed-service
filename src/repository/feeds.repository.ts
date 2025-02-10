@@ -1,6 +1,7 @@
 import { IFeedRepository } from '../interfaces/IFeedRepository';
 import { Post, User, Timeline } from '../configs/sequelize/models.sequelize';
 import { FeedItem } from '../interfaces/FeedItem.interface';
+import createHttpError from 'http-errors';
 
 class FeedsRepository implements IFeedRepository {
 
@@ -21,13 +22,14 @@ class FeedsRepository implements IFeedRepository {
                         }]
                     }
                 ],
-                attributes: ['isLiked', 'isCommented'],
+                attributes: ['id', 'isLiked', 'isCommented'], // Include 'id' here
                 order: [['createdAt', 'DESC']],
                 limit: pageSize,
                 offset
             });
 
             return feed.map((entry: any) => ({
+                id: entry.id, // This is the Timeline id
                 postID: entry.Post.postID,
                 imageURL: entry.Post.imageURL,
                 content: entry.Post.content,
@@ -43,6 +45,35 @@ class FeedsRepository implements IFeedRepository {
         } catch (error) {
             console.error("Error fetching user feed:", error);
             throw new Error("Failed to fetch feed");
+        }
+    }
+
+    async toggleLike(postID: string, userID: string): Promise<boolean> {
+        try {
+            // Find the timeline entry based on postID and userID
+            const timeline = await Timeline.findOne({
+                where: {
+                    postID,
+                    userID,
+                },
+            });
+
+            if (timeline) {
+                // Toggle the isLiked value
+                const newIsLikedValue = !timeline.isLiked;
+
+                // Update the timeline entry
+                await timeline.update({ isLiked: newIsLikedValue });
+
+                console.log(`Timeline for postID ${postID} and userID ${userID} toggled isLiked to ${newIsLikedValue}.`);
+                return true;
+            } else {
+                console.log(`Timeline for postID ${postID} and userID ${userID} not found.`);
+                return false;
+            }
+        } catch (error) {
+            console.error("Error toggling like:", error);
+            throw createHttpError("Unable to like post");
         }
     }
 }

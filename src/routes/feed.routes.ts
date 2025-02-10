@@ -16,4 +16,10 @@ const feedsController = new FeedsController(feedsService);
 feedsRouter.get("/:page",  validateAccessToken, (req: Request, res: Response, next: NextFunction) => {
     feedsController.getFeed(req, res, next);
 });
+
+/* toggle like */
+feedsRouter.put("/like/:postID",  validateAccessToken, (req: Request, res: Response, next: NextFunction) => {
+    feedsController.toggleLike(req, res, next);
+})
+
 export default feedsRouter;

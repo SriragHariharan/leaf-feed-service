@@ -18,6 +18,16 @@ class FeedsService implements IFeedService {
             throw createHttpError(500, "Unable to generate feed.")
         }
     }
+
+    /* toggle isLiked to true or false */
+    async toggleLike(postID: string, userID: string): Promise<boolean> {
+        try {
+            const response = await this.feedsRepository.toggleLike(postID, userID);
+            return response;
+        } catch (error) {
+            throw createHttpError("Unable to add interaction");
+        }
+    }
 }
 
 export default FeedsService;
