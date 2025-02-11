@@ -11,3 +11,21 @@ export interface FeedItem {
     isLiked: boolean;
     isCommented: boolean;
 }
+
+export interface PaginatedTimeline {
+  posts: Array<{
+    postID: string;
+    imageURL: string;
+    content: string;
+    createdAt: Date;
+    isLiked: boolean;
+    isCommented: boolean;
+    owner: {
+      userID: string;
+      username: string;
+      profilePic?: string;
+    };
+  }>;
+  currentPage: number;
+  totalPages: number;
+}

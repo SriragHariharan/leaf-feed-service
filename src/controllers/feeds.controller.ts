@@ -36,6 +36,21 @@ class FeedsController {
             next(error);
         }
     }
+
+    async getUsertimeline(req: Request, res: Response, next: NextFunction){
+        try {
+            const userID = req.params?.userID === 'self' ? req.user?.aud : req.params?.userID;
+            if(!userID){
+                throw createHttpError(404, "User not found");
+            }
+            const page = Number(req.query?.page);
+            const timeline = await this.feedService.getUserTimeline(userID, page);
+            return res.status(200).json({ success: true, message: "timeline fetched", data: { timeline }});
+        } catch (error) {
+            console.log(error);
+            next(error);            
+        }
+    }
 }
 
 export default FeedsController;

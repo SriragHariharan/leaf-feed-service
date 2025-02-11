@@ -1,6 +1,6 @@
 import { IFeedRepository } from '../interfaces/IFeedRepository';
 import { Post, User, Timeline } from '../configs/sequelize/models.sequelize';
-import { FeedItem } from '../interfaces/FeedItem.interface';
+import { FeedItem, PaginatedTimeline } from '../interfaces/FeedItem.interface';
 import createHttpError from 'http-errors';
 
 class FeedsRepository implements IFeedRepository {
@@ -69,11 +69,45 @@ class FeedsRepository implements IFeedRepository {
                 return true;
             } else {
                 console.log(`Timeline for postID ${postID} and userID ${userID} not found.`);
-                return false;
+                throw createHttpError("Timeline entry not found");
             }
         } catch (error) {
             console.error("Error toggling like:", error);
             throw createHttpError("Unable to like post");
+        }
+    }
+
+    /* get user timeline ie what all a user has posted */
+    async getUserTimeline(userID: string, page: number): Promise<PaginatedTimeline> {
+        try {
+            const limit = 3;
+            const offset = (page - 1) * limit;
+
+            const posts = await Post.findAll({
+                where: { ownerID: userID },
+                include: [
+                    {
+                        model: Timeline,
+                        required: true,
+                        where: { userID },
+                        attributes: ["isLiked", "isCommented"],
+                    },
+                    {
+                        model: User,
+                        required: true,
+                        where: { userID },
+                        attributes: ["userID", "username", "profilePic"],
+                    },
+                ],
+                limit,
+                offset,
+                order: [['createdAt', 'DESC']], // Fetch latest posts first
+            });
+
+            return posts;
+        } catch (error) {
+            console.error("Error fetching user timeline:", error);
+            throw new Error("Failed to fetch user timeline");
         }
     }
 }

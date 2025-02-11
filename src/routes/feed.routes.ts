@@ -21,5 +21,9 @@ feedsRouter.get("/:page",  validateAccessToken, (req: Request, res: Response, ne
 feedsRouter.put("/like/:postID",  validateAccessToken, (req: Request, res: Response, next: NextFunction) => {
     feedsController.toggleLike(req, res, next);
 })
+/* get user timeline( what all a user has posted ) */
+feedsRouter.get("/timeline/:userID/",  validateAccessToken, (req: Request, res: Response, next: NextFunction) => {
+    feedsController.getUsertimeline(req, res, next);
+})
 
 export default feedsRouter;

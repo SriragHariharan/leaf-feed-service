@@ -39,7 +39,7 @@ app.use((err: any, _req:Request, res:Response, _next: NextFunction) => {
 })
 
 /* connect to cockroach DB & run express server */
-sequelize.sync({ alter: true })
+sequelize.sync()
   .then(() => {
     console.log('💡 Tables created & Connected to database...💡');
     app.listen(process.env.PORT, () => console.log("server running at " + process.env.PORT))

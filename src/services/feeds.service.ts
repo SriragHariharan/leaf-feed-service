@@ -1,5 +1,5 @@
 import createHttpError from "http-errors";
-import { FeedItem } from "../interfaces/FeedItem.interface";
+import { FeedItem, PaginatedTimeline } from "../interfaces/FeedItem.interface";
 import { IFeedRepository } from "../interfaces/IFeedRepository";
 import { IFeedService } from "../interfaces/IFeedService";
 
@@ -26,6 +26,16 @@ class FeedsService implements IFeedService {
             return response;
         } catch (error) {
             throw createHttpError("Unable to add interaction");
+        }
+    }
+
+    /* fetch timeline ie what all a user has posted */
+    async getUserTimeline(userID: string, page: number): Promise<PaginatedTimeline> {
+        try {
+            const timeline = await this.feedsRepository.getUserTimeline(userID, page);
+            return timeline;
+        } catch (error) {
+            throw createHttpError(500, "Unable to fetch timeline");
         }
     }
 }
