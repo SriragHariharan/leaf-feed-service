@@ -1,32 +1,37 @@
 import createHttpError from "http-errors";
-import { Timeline } from "../configs/sequelize/models.sequelize"; // Import the Timeline model
+import prisma from "../configs/prisma";
 
 async function fanoutService(friendIDs: string[], postID: string): Promise<void> {
   try {
-    await Promise.all(
-      friendIDs.map(async (friendID) => {
-        console.log("Fanout post to friend:", friendID);
+    // Using prisma.createMany for batch insertion instead of Promise.allSettled
+    const existingEntries = await prisma.timeline.findMany({
+      where: {
+        userID: { in: friendIDs },
+        postID: postID,
+      },
+      select: { userID: true },
+    });
 
-        // Check if the entry already exists
-        const existingEntry = await Timeline.findOne({
-          where: { userID: friendID, postID },
-        });
+    const existingFriendIDs = new Set(existingEntries.map((entry) => entry.userID));
 
-        if (!existingEntry) {
-          // Insert if not exists, including required default values
-          await Timeline.create({
-            userID: friendID,
-            postID,
-            isLiked: false, // Default value
-            isCommented: false, // Default value
-          });
+    const newTimelines = friendIDs
+      .filter((friendID) => !existingFriendIDs.has(friendID))
+      .map((friendID) => ({
+        userID: friendID,
+        postID: postID,
+        isLiked: false,
+        isCommented: false,
+      }));
 
-          console.log(`Post ${postID} added to timeline of user ${friendID}`);
-        } else {
-          console.log(`Post ${postID} already exists in timeline of user ${friendID}`);
-        }
-      })
-    );
+    if (newTimelines.length > 0) {
+      await prisma.timeline.createMany({
+        data: newTimelines,
+        skipDuplicates: true, // Avoid duplicate insertions
+      });
+      console.log(`Fanout completed for ${newTimelines.length} friends.`);
+    } else {
+      console.log("No new timelines to fanout.");
+    }
   } catch (error) {
     console.error(error);
     throw createHttpError(500, `Unable to fanout the post with postID: ${postID}`);

@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// CockroachDB provider
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  userID     String    @id
+  username   String
+  profilePic String?  // Optional
+  posts      Post[]   @relation("UserPosts")
+  timelines  Timeline[] @relation("UserTimelines")
+}
+
+model Post {
+  postID    String    @id @default(uuid())
+  imageURL  String?
+  content   String
+  ownerID   String
+  createdAt DateTime @default(now())
+  owner     User     @relation("UserPosts", fields: [ownerID], references: [userID], onDelete: Cascade)
+  timelines Timeline[]
+}
+
+model Timeline {
+  id          String  @id @default(uuid())
+  userID      String
+  postID      String
+  isLiked     Boolean @default(false)
+  isCommented Boolean @default(false)
+  user        User    @relation("UserTimelines", fields: [userID], references: [userID], onDelete: Cascade)
+  post        Post    @relation(fields: [postID], references: [postID], onDelete: Cascade)
+
+  @@unique([userID, postID]) // Ensuring a user can have only one timeline entry per post
+}

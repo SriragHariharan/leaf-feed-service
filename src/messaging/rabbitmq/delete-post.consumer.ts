@@ -1,6 +1,6 @@
 import amqp from 'amqplib';
 import 'dotenv/config';
-import { Post, Timeline } from '../../configs/sequelize/models.sequelize';
+import prisma from '../../configs/prisma';
 
 const EXCHANGE = "post_events_exchange";
 const QUEUE_NAME = "post_deleted_queue";
@@ -23,16 +23,19 @@ async function consumePostDeletedEvent() {
         console.log(`Waiting for messages in ${QUEUE_NAME}. To exit press CTRL+C`);
 
         // Consume messages from the queue
-        channel.consume(QUEUE_NAME, (msg) => {
+        channel.consume(QUEUE_NAME, async (msg) => {
             if (msg !== null) {
                 const messageContent = JSON.parse(msg.content.toString());
                 console.log("Received post deleted event:", messageContent);
 
-                // Acknowledge the message
-                channel.ack(msg);
-
-                // Handle the post deletion logic here
-                handlePostDeletion(messageContent.postID);
+                try {
+                    await handlePostDeletion(messageContent.postID);
+                    channel.ack(msg);
+                    console.log(`Acknowledged message for post ID: ${messageContent.postID}`);
+                } catch (error) {
+                    console.error(`Failed to handle post deletion for post ID: ${messageContent.postID}`, error);
+                    channel.nack(msg, false, true); // Requeue the message
+                }
             }
         }, { noAck: false });
     } catch (error) {
@@ -42,20 +45,20 @@ async function consumePostDeletedEvent() {
 
 async function handlePostDeletion(postID: string) {
     try {
-        await Post.destroy({
+        await prisma.post.delete({
             where: { postID },
         });
 
-        await Timeline.destroy({
+        await prisma.timeline.deleteMany({
             where: { postID },
         });
 
-        console.log(`Post deleted successfully for post ID: ${postID}`);
+        console.log(`Post and timeline entries deleted successfully for post ID: ${postID}`);
     } catch (error) {
-        console.error(`Error deleting post for post ID: ${postID}`, error);
+        console.error(`Error deleting post or timeline entries for post ID: ${postID}`, error);
+        throw new Error("Failed to delete post or timeline entries");
     }
 }
-
 
 // Start consuming
 consumePostDeletedEvent();

@@ -5,7 +5,6 @@ import bodyParser from 'body-parser';
 
 /* Rabbit MQ */
 import "./messaging/rabbitmq/consumer";
-import { sequelize } from './configs/sequelize/models.sequelize';
 import feedsRouter from './routes/feed.routes';
 
 const app = express();
@@ -38,13 +37,5 @@ app.use((err: any, _req:Request, res:Response, _next: NextFunction) => {
   })
 })
 
-/* connect to cockroach DB & run express server */
-sequelize.sync()
-  .then(() => {
-    console.log('💡 Tables created & Connected to database...💡');
-    app.listen(process.env.PORT, () => console.log("server running at " + process.env.PORT))
-  })
-  .catch((err: any) => {
-    console.error('Error syncing database: ', err);
-    process.exit(1);
-  });
+/*run express server */
+app.listen(process.env.PORT, () => console.log("server running at " + process.env.PORT))

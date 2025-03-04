@@ -1,7 +1,7 @@
 import { IFeedRepository } from '../interfaces/IFeedRepository';
-import { Post, User, Timeline } from '../configs/sequelize/models.sequelize';
 import { FeedItem, PaginatedTimeline } from '../interfaces/FeedItem.interface';
 import createHttpError from 'http-errors';
+import prisma from '../configs/prisma';
 
 class FeedsRepository implements IFeedRepository {
 
@@ -10,48 +10,57 @@ class FeedsRepository implements IFeedRepository {
             const pageSize = 5;
             const offset = (page - 1) * pageSize;
 
-            const feed = await Timeline.findAll({
+            const feed = await prisma.timeline.findMany({
                 where: { userID },
-                include: [
-                    {
-                        model: Post,
-                        attributes: ['postID', 'imageURL', 'content', 'createdAt'],
-                        include: [{
-                            model: User,
-                            attributes: ['userID', 'username', 'profilePic']
-                        }]
+                include: {
+                    post: {
+                        select: {
+                            postID: true,
+                            imageURL: true,
+                            content: true,
+                            createdAt: true,
+                            owner: {
+                                select: {
+                                    userID: true,
+                                    username: true,
+                                    profilePic: true
+                                }
+                            }
+                        }
                     }
-                ],
-                attributes: ['id', 'isLiked', 'isCommented'], // Include 'id' here
-                order: [['createdAt', 'DESC']],
-                limit: pageSize,
-                offset
+                },
+                orderBy: {
+                    post: {
+                        createdAt: 'desc'
+                    }
+                },
+                take: pageSize,
+                skip: offset
             });
 
-            return feed.map((entry: any) => ({
-                id: entry.id, // This is the Timeline id
-                postID: entry.Post.postID,
-                imageURL: entry.Post.imageURL,
-                content: entry.Post.content,
-                createdAt: entry.Post.createdAt,
+            return feed.map((entry) => ({
+                id: entry.id,
+                postID: entry.post.postID,
+                imageURL: entry.post.imageURL,
+                content: entry.post.content,
+                createdAt: entry.post.createdAt,
                 owner: {
-                    userID: entry.Post.User.userID,
-                    username: entry.Post.User.username,
-                    profilePic: entry.Post.User.profilePic
+                    userID: entry.post.owner.userID,
+                    username: entry.post.owner.username,
+                    profilePic: entry.post.owner.profilePic
                 },
                 isLiked: entry.isLiked,
                 isCommented: entry.isCommented
             }));
         } catch (error) {
             console.error("Error fetching user feed:", error);
-            throw new Error("Failed to fetch feed");
+            throw createHttpError(500, "Failed to fetch feed");
         }
     }
 
     async toggleLike(postID: string, userID: string): Promise<boolean> {
         try {
-            // Find the timeline entry based on postID and userID
-            const timeline = await Timeline.findOne({
+            const timeline = await prisma.timeline.findFirst({
                 where: {
                     postID,
                     userID,
@@ -59,55 +68,59 @@ class FeedsRepository implements IFeedRepository {
             });
 
             if (timeline) {
-                // Toggle the isLiked value
                 const newIsLikedValue = !timeline.isLiked;
 
-                // Update the timeline entry
-                await timeline.update({ isLiked: newIsLikedValue });
+                await prisma.timeline.update({
+                    where: { id: timeline.id },
+                    data: { isLiked: newIsLikedValue },
+                });
 
                 console.log(`Timeline for postID ${postID} and userID ${userID} toggled isLiked to ${newIsLikedValue}.`);
                 return true;
             } else {
                 console.log(`Timeline for postID ${postID} and userID ${userID} not found.`);
-                throw createHttpError("Timeline entry not found");
+                throw createHttpError(404, "Timeline entry not found");
             }
         } catch (error) {
             console.error("Error toggling like:", error);
-            throw createHttpError("Unable to like post");
+            throw createHttpError(500, "Unable to like post");
         }
     }
 
-    /* get user timeline ie what all a user has posted */
     async getUserTimeline(userID: string, page: number): Promise<PaginatedTimeline> {
         try {
             const limit = 3;
             const offset = (page - 1) * limit;
 
-            const posts = await Post.findAll({
+            const posts = await prisma.post.findMany({
                 where: { ownerID: userID },
-                include: [
-                    {
-                        model: Timeline,
-                        required: true,
+                include: {
+                    timelines: {
                         where: { userID },
-                        attributes: ["isLiked", "isCommented"],
+                        select: {
+                            isLiked: true,
+                            isCommented: true,
+                        },
                     },
-                    {
-                        model: User,
-                        required: true,
-                        where: { userID },
-                        attributes: ["userID", "username", "profilePic"],
+                    owner: {
+                        select: {
+                            userID: true,
+                            username: true,
+                            profilePic: true,
+                        },
                     },
-                ],
-                limit,
-                offset,
-                order: [['createdAt', 'DESC']], // Fetch latest posts first
+                },
+                orderBy: {
+                    createdAt: 'desc',
+                },
+                take: limit,
+                skip: offset,
             });
 
-            return posts;
+            return posts as unknown as PaginatedTimeline;
         } catch (error) {
             console.error("Error fetching user timeline:", error);
-            throw new Error("Failed to fetch user timeline");
+            throw createHttpError(500, "Failed to fetch user timeline");
         }
     }
 }

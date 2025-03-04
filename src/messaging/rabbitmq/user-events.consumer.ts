@@ -1,8 +1,6 @@
+import prisma from "../../configs/prisma";
 import logger from "../../helpers/logger";
 import amqp, { Channel, Connection, Message } from "amqplib";
-import { User } from "../../configs/sequelize/models.sequelize"; 
-
-console.log("[console log] RabbitMQ server is listening...");
 
 const EXCHANGE: string = "user_events_exchange";
 const QUEUE: string = "feeds_service_queue";
@@ -20,83 +18,46 @@ interface UserData {
 async function getUserEvents(): Promise<void> {
     try {
         logger.info("[RabbitMQ] Initializing connection to RabbitMQ...");
-
-        // Establish a TCP connection
         const connection: Connection = await amqp.connect(process.env.RABBITMQ_CONNECTION_STRING!);
         logger.info("[RabbitMQ] Connection established successfully.");
 
-        // Create a channel (communication line)
         const channel: Channel = await connection.createChannel();
         logger.info("[RabbitMQ] Channel created successfully.");
 
-        // Create a main exchange (if not exists)
         await channel.assertExchange(EXCHANGE, "fanout", { durable: true });
-        logger.info(`[RabbitMQ] Exchange '${EXCHANGE}' asserted.`);
-
-        // Create a DLX (if not exists)
         await channel.assertExchange(DLX_EXCHANGE, "direct", { durable: true });
-        logger.info(`[RabbitMQ] DLX '${DLX_EXCHANGE}' asserted.`);
-
-        // Create a DLQ (if not exists)
         await channel.assertQueue(DLX_QUEUE, { durable: true });
-        logger.info(`[RabbitMQ] DLQ '${DLX_QUEUE}' asserted.`);
-
-        // Bind the DLQ to the DLX
         await channel.bindQueue(DLX_QUEUE, DLX_EXCHANGE, DLX_QUEUE);
-        logger.info(`[RabbitMQ] DLQ '${DLX_QUEUE}' bound to DLX '${DLX_EXCHANGE}'.`);
-
-        // Create the main queue with DLX configuration
         await channel.assertQueue(QUEUE, {
             durable: true,
             deadLetterExchange: DLX_EXCHANGE,
             deadLetterRoutingKey: DLX_QUEUE,
         });
-        logger.info(`[RabbitMQ] Queue '${QUEUE}' asserted with DLX '${DLX_EXCHANGE}'.`);
-
-        // Bind the main queue to the exchange
         await channel.bindQueue(QUEUE, EXCHANGE, "");
-        logger.info(`[RabbitMQ] Queue '${QUEUE}' bound to exchange '${EXCHANGE}'.`);
 
-        /* Consume messages from the main queue */
         channel.consume(QUEUE, async (message: Message | null) => {
-            if (message !== null) {
+            if (message) {
                 try {
                     const userData: UserData = JSON.parse(message.content.toString());
-                    logger.info(`[RabbitMQ] Received user event for userID: ${userData?.userID}`);
-
-                    const success: boolean = await processUserData(userData);
-
-                    if (success) {
-                        logger.info(`[RabbitMQ] Successfully processed event for userID: ${userData?.userID}`);
-                        channel.ack(message);
-                    } else {
-                        logger.warn(`[RabbitMQ] Processing failed for userID: ${userData?.userID}. Sending to DLQ.`);
-                        channel.nack(message, false, false); // Reject the message (do not requeue)
-                    }
+                    const success = await processUserData(userData);
+                    success ? channel.ack(message) : channel.nack(message, false, false);
                 } catch (error) {
-                    logger.error(`[RabbitMQ] Error processing user event: `, { error });
-                    channel.nack(message, false, false); // Reject the message (do not requeue)
+                    logger.error("[RabbitMQ] Error processing user event", { error });
+                    channel.nack(message, false, false);
                 }
             }
         });
 
-        /* Consume messages from the DLQ for retries */
         channel.consume(DLX_QUEUE, async (message: Message | null) => {
-            if (message !== null) {
+            if (message) {
                 const userData: UserData = JSON.parse(message.content.toString());
-                const retryCount: number = message.properties.headers?.['x-retry-count'] || 0;
+                const retryCount = message.properties.headers?.['x-retry-count'] || 0;
 
                 if (retryCount < MAX_RETRIES) {
-                    logger.warn(`[RabbitMQ] Retrying event (${retryCount + 1}/${MAX_RETRIES}) for userID: ${userData?.userID}`);
-
-                    const success: boolean = await processUserData(userData);
-
+                    const success = await processUserData(userData);
                     if (success) {
-                        logger.info(`[RabbitMQ] Retry successful for userID: ${userData?.userID}`);
                         channel.ack(message);
                     } else {
-                        logger.warn(`[RabbitMQ] Retry failed for userID: ${userData?.userID}. Republishing to DLQ...`);
-                        // Increment retry count and republish to DLQ
                         channel.publish(EXCHANGE, "", Buffer.from(JSON.stringify(userData)), {
                             persistent: true,
                             headers: { 'x-retry-count': retryCount + 1 },
@@ -104,7 +65,7 @@ async function getUserEvents(): Promise<void> {
                         channel.ack(message);
                     }
                 } else {
-                    logger.error(`[RabbitMQ] Max retries reached for userID: ${userData?.userID}. Manual intervention required.`, { userData });
+                    logger.error("[RabbitMQ] Max retries reached", { userData });
                     channel.ack(message);
                 }
             }
@@ -112,107 +73,85 @@ async function getUserEvents(): Promise<void> {
 
         logger.info("[RabbitMQ] Ready to consume messages...");
     } catch (error) {
-        logger.error(`[RabbitMQ] Critical error in consumer setup: `, { error });
+        logger.error("[RabbitMQ] Critical error in consumer setup", { error });
     }
 }
 
-/* Handle the processing of received data here */
 async function processUserData(userData: UserData): Promise<boolean> {
-    try {
-        logger.info(`[RabbitMQ] Processing user data for userID: ${userData?.userID}`);
+    if (!userData.userID) return false;
 
-        if (!userData?.userID) {
-            logger.error(`[RabbitMQ] Invalid user data: Missing userID`);
+    switch (userData.type) {
+        case "user":
+            return await createUser(userData);
+        case "username":
+            return await updateUsername(userData.userID, userData.username!);
+        case "picture":
+            return await updateProfilePicture(userData.userID, userData.profilePicture!);
+        default:
+            logger.warn("Unknown user event type", { type: userData.type });
             return false;
-        }
-
-        let success: boolean = false;
-
-        if (userData.type === "user") {
-            success = await createUser(userData);
-        } else if (userData.type === "username") {
-            success = await updateUsername(userData.userID, userData.username!);
-        } else if (userData.type === "picture") {
-            success = await updateProfilePicture(userData.userID, userData.profilePicture!);
-        } else {
-            logger.warn(`[RabbitMQ] Unknown user event type: ${userData.type}`);
-            return false;
-        }
-
-        if (success) {
-            logger.info(`[RabbitMQ] Successfully processed user event for userID: ${userData?.userID}`);
-            return true;
-        } else {
-            logger.warn(`[RabbitMQ] Failed to process user event for userID: ${userData?.userID}`);
-            return false;
-        }
-    } catch (error) {
-        logger.error(`[RabbitMQ] Error processing user event for userID: ${userData?.userID}`, { error });
-        return false;
     }
 }
 
-/* Create a new user in the database */
 async function createUser(user: UserData): Promise<boolean> {
     try {
-        if (!user?.userID || !user?.username) {
-            logger.error(`[Database] Invalid user data: Missing required fields`);
+        if (!user.userID || !user.username) {
+            logger.error("Invalid user data: Missing userID or username");
             return false;
         }
 
-        await User.create({
-            userID: user.userID,
-            username: user.username,
-            profilePic: user.profilePicture ?? undefined,
+        await prisma.user.create({
+            data: {
+                userID: user.userID,
+                username: user.username,
+                profilePic: user.profilePicture ?? undefined,
+            },
         });
 
-        logger.info(`[Database] Successfully created user with userID: ${user.userID}`);
+        logger.info(`Successfully created user with userID: ${user.userID}`);
         return true;
     } catch (error) {
-        console.log(error);
-        logger.error(`[Database] Error creating user with userID: ${user?.userID}`, { error });
+        logger.error("Error creating user", { userID: user.userID, error });
         return false;
     }
 }
 
-/* Update username in the database */
 async function updateUsername(userID: string, newUsername: string): Promise<boolean> {
     try {
         if (!userID || !newUsername) {
-            logger.error(`[Database] Invalid input: Missing userID or newUsername`);
+            logger.error("Invalid input: Missing userID or newUsername");
             return false;
         }
 
-        await User.update(
-            { username: newUsername },
-            { where: { userID: userID } }
-        );
+        await prisma.user.update({
+            where: { userID: userID },
+            data: { username: newUsername },
+        });
 
-        logger.info(`[Database] Successfully updated username for userID: ${userID}`);
+        logger.info(`Successfully updated username for userID: ${userID}`);
         return true;
     } catch (error) {
-        logger.error(`[Database] Error updating username for userID: ${userID}`, { error });
+        logger.error("Error updating username", { userID, error });
         return false;
     }
 }
 
-/* Update profile picture in the database */
 async function updateProfilePicture(userID: string, newProfilePicture: string): Promise<boolean> {
     try {
         if (!userID || !newProfilePicture) {
-            logger.error(`[Database] Invalid input: Missing userID or newProfilePicture`);
+            logger.error("Invalid input: Missing userID or newProfilePicture");
             return false;
         }
 
-        await User.update(
-            { profilePic: newProfilePicture },
-            { where: { userID: userID } }
-        );
+        await prisma.user.update({
+            where: { userID: userID },
+            data: { profilePic: newProfilePicture },
+        });
 
-        logger.info(`[Database] Successfully updated profile picture for userID: ${userID}`);
+        logger.info(`Successfully updated profile picture for userID: ${userID}`);
         return true;
     } catch (error) {
-        logger.error(`[Database] Error updating profile picture for userID: ${userID}`, { error });
+        logger.error("Error updating profile picture", { userID, error });
         return false;
     }
 }
