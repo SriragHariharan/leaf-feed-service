@@ -92,7 +92,7 @@ class FeedsRepository implements IFeedRepository {
             const limit = 3;
             const offset = (page - 1) * limit;
 
-            const posts = await prisma.post.findMany({
+            const posts = await prisma.Post.findMany({
                 where: { ownerID: userID },
                 include: {
                     timelines: {
@@ -117,7 +117,7 @@ class FeedsRepository implements IFeedRepository {
                 skip: offset,
             });
 
-            return posts as unknown as PaginatedTimeline;
+            return posts;
         } catch (error) {
             console.error("Error fetching user timeline:", error);
             throw createHttpError(500, "Failed to fetch user timeline");
