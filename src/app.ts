@@ -6,12 +6,13 @@ import bodyParser from 'body-parser';
 /* Rabbit MQ */
 import "./messaging/rabbitmq/consumer";
 import feedsRouter from './routes/feed.routes';
+import logger from './helpers/logger';
 
 const app = express();
 
 /* logger logs handling */
-app.use((_req: Request, _res: Response, next: NextFunction) => {
-//   logger.info(`Incoming request`, { method: req.method, url: req.url });
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  logger.info(`Incoming request`, { method: req.method, url: req.url });
   next();
 });
 
