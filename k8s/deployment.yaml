@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leaf-feed-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: leaf-feed-service
+  template:
+    metadata:
+      labels:
+        app: leaf-feed-service
+    spec:
+      containers:
+        - name: leaf-feed-service
+          image: sriraghariharan/leaf-feed-service:v1
+          ports:
+            - containerPort: 2003
+          envFrom:
+            - configMapRef:
+                name: leaf-feed-service-config
+          # resources:
+          #   requests:
+          #     memory: "256Mi"
+          #     cpu: "500m"  # 500 milliCPU, or 0.5 CPU cores
+          #   limits:
+          #     memory: "512Mi"
+          #     cpu: "1"  # 1 CPU core
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: leaf-feed-service
+spec:
+  selector:
+    app: leaf-feed-service
+  ports:
+    - protocol: TCP
+      port: 2003
+      targetPort: 2003

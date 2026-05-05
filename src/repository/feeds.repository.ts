@@ -105,7 +105,7 @@ class FeedsRepository implements IFeedRepository {
     }
 
     /* Fetch a paginated timeline for a user. */
-    async getUserTimeline(userID: string, page: number): Promise<PaginatedTimeline> {
+    async getUserTimeline(userID: string, page: number): Promise<any> {
         logger.debug(`Entering getUserTimeline method. Params: userID=${userID}, page=${page}`, { method: "getUserTimeline", layer: "repository" });
         try {
             const limit = 3;

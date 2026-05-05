@@ -48,7 +48,7 @@ async function consumePostDeletedEvent() {
                     channel.ack(msg);
                 } catch (error) {
                     console.error(`Error deleting post for post ID: ${messageContent.postID}`, error);
-                    const retryCount = msg.properties.headers['x-retry-count'] || 0;
+                    const retryCount = msg.properties.headers?.['x-retry-count'] || 0; // Optional chaining
 
                     if (retryCount < MAX_RETRIES) {
                         // Increment the retry count and requeue the message
@@ -81,7 +81,7 @@ async function consumePostDeletedEvent() {
                     channel.ack(msg);
                 } catch (error) {
                     console.error(`Error retrying post deletion for post ID: ${messageContent.postID}`, error);
-                    const retryCount = msg.properties.headers['x-retry-count'] || 0;
+                    const retryCount = msg.properties.headers?.['x-retry-count'] || 0; // Optional chaining
 
                     if (retryCount < MAX_RETRIES) {
                         // Increment the retry count and requeue the message
@@ -112,13 +112,14 @@ async function handlePostDeletion(postID: string) {
             where: { postID },
         });
 
-        await prisma .timeline.deleteMany({
+        await prisma.timeline.deleteMany({
             where: { postID },
         });
 
         console.log(`Post deleted successfully for post ID: ${postID}`);
     } catch (error) {
         console.error(`Error deleting post for post ID: ${postID}`, error);
+        throw error; // Re-throw the error to handle it in the consumer
     }
 }
 
